@@ -40,6 +40,7 @@ def main():
     model = PPO(
         policy="MultiInputPolicy",
         env=env,
+        device="cuda:0",
         policy_kwargs=dict(
         net_arch=[dict(pi=[128, 128], vf=[128, 128])]),
         verbose=1,
@@ -52,7 +53,7 @@ def main():
         tensorboard_log="./ppo_tensorboard/",
     )
 
-    # # # 3) Train with both Render and Reward callbacks
+    # 3) Train with both Render and Reward callbacks
     callbacks = CallbackList([RenderCallback(), RewardCallback()])
     model.learn(
         total_timesteps=1_000_000,

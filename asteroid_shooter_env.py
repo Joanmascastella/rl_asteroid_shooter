@@ -9,8 +9,8 @@ class AsteroidShooterEnv(gym.Env):
     def __init__(self):
         super().__init__()
         # how many objects we’ll track at once
-        self.MAX_ASTEROIDS = 100
-        self.MAX_SHOTS     = 100
+        self.MAX_ASTEROIDS = 20
+        self.MAX_SHOTS     = 10
 
         # our game loop instance
         self.game = MainGameLoop()
@@ -52,7 +52,7 @@ class AsteroidShooterEnv(gym.Env):
             "player_pos":           spaces.Box(0.0, 1.0, (2,), dtype=np.float32),
             "player_rot":           spaces.Box(0.0, 1.0, (1,), dtype=np.float32),
             "player_cd":            spaces.Box(0.0, 1.0, (1,), dtype=np.float32),
-            "player_turn_speed":    spaces.Box(0.0, 1.0, (1,), dtype=np.float32),
+            # "player_turn_speed":    spaces.Box(0.0, 1.0, (1,), dtype=np.float32),
 
             "current_score":        spaces.Box(0.0, 1.0, (1,), dtype=np.float32),
             "high_score":           spaces.Box(0.0, 1.0, (1,), dtype=np.float32),
@@ -65,7 +65,7 @@ class AsteroidShooterEnv(gym.Env):
             "asteroids_rel_angle":  spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
 
             "shots_pos":            spaces.Box(0.0, 1.0, (self.MAX_SHOTS, 2), dtype=np.float32),
-            "shots_speed":          spaces.Box(0.0, 1.0, (self.MAX_SHOTS,), dtype=np.float32),
+            # "shots_speed":          spaces.Box(0.0, 1.0, (self.MAX_SHOTS,), dtype=np.float32),
         })
 
         # Here we define a action space. depending on the action chosen a different action occurs
@@ -96,7 +96,7 @@ class AsteroidShooterEnv(gym.Env):
         obs["player_pos"]        = np.array([px/SCREEN_WIDTH, py/SCREEN_HEIGHT], dtype=np.float32)
         obs["player_rot"]        = np.array([self.game.player_rotation / 360.0], dtype=np.float32)
         obs["player_cd"]         = np.array([self.game.player_shoot_cooldown / PLAYER_SHOOT_COOLDOWN], dtype=np.float32)
-        obs["player_turn_speed"] = np.array([self.game.player_turn_speed / PLAYER_TURN_SPEED], dtype=np.float32)
+        # obs["player_turn_speed"] = np.array([self.game.player_turn_speed / PLAYER_TURN_SPEED], dtype=np.float32)
 
         # — Score —
         # Here we assume a max‐score scaling of, say, 1000 points
@@ -154,7 +154,7 @@ class AsteroidShooterEnv(gym.Env):
             ss[i] = speed / PLAYER_SHOOT_SPEED
 
         obs["shots_pos"]   = sp
-        obs["shots_speed"] = ss
+        # obs["shots_speed"] = ss
 
         return obs
 
@@ -167,49 +167,75 @@ class AsteroidShooterEnv(gym.Env):
     
 
     def step(self, action):
+        # define the space in which the agent can move 
         max_d   = (SCREEN_WIDTH**2 + SCREEN_HEIGHT**2)**0.5
-        prev_min = (min(self.game.asteroids_current_dist)
-                    if self.game.asteroids_current_dist else max_d)
+        
+        # get the current distrubution of asteroids 
+        dists   = self.game.asteroids_current_dist
+        # calculate the min collection of asteroids in the space
+        prev_min = min(dists) if dists else max_d
+        # calculate the avg
+        prev_avg = sum(dists)/len(dists) if dists else max_d
 
+        # call the main game loop to apply user action
         self.game.apply_action(action)
+        # update the game state
         done = self.game.update(self.frame_dt)
+        # get the new obs
         obs  = self._get_obs()
 
-        reward = 0.0
-
-        # 1) scoring + proximity‐weighted shooting bonus
+        # re intialize the reward
+        reward = 0.0    
+        # calculate the diff between the current score and the last score achieved 
         delta = self.game.current_score - self._last_score
+
+         # kills + proximity‐weighted bonus
         if delta > 0:
-            prox = 1 - prev_min / max_d
+            prox = 1 - (prev_min / max_d)
             reward += 1.0 * delta
             reward += 0.5 * delta * (1 + prox)
 
-        # 2) action shaping as before
-        if action in [0,1,2,3]:
+        # ── Action shaping ───
+        if action in [1,2,3]:        # lateral moves
             reward += 0.1
-        elif action in [6,7]:
-            reward -= 0.02
-        elif action == 4:  # shooting (but we already rewarded kills above)
-            reward -= 0.01  # small cost per shot
-        elif action == 5:
-            reward -= 0.05
+        elif action == 0:            # back-up is extra valuable
+            reward += 0.1 + 0.05
+        elif action == 4:            # shoot
+            # small cost per shot
+            reward -= 0.01
+            # penalty if no kill
+            if delta == 0:
+                reward -= 0.05
 
-        # 3) dodge bonus, also proximity‐weighted
-        if self.game.asteroids_current_dist:
-            new_min = min(self.game.asteroids_current_dist)
+        # Bonus for moving into sparse regions
+        if dists:
+            new_avg   = sum(self.game.asteroids_current_dist)/len(self.game.asteroids_current_dist)
+            avg_delta = new_avg - prev_avg
+            reward   += max(-0.05, min(0.05, (avg_delta / max_d) * 0.5))
+
+        # Dodge bonus (getting farther from closest)
+        if dists:
+            new_min     = min(self.game.asteroids_current_dist)
             dodge_delta = new_min - prev_min
-            prox = 1 - prev_min / max_d
-            # clamp and weight by (1 + prox)
-            reward += max(-0.05, min(0.05, (dodge_delta / max_d) * 0.5 * (1 + prox)))
+            prox        = 1 - (prev_min / max_d)
+            reward     += max(-0.05, min(0.05, (dodge_delta / max_d) * 0.5 * (1 + prox)))
 
-        # 4) death penalty
+        # Border penalty
+        px, py = self.game.player_current_pos
+        margin = 20
+        if px < margin or px > SCREEN_WIDTH - margin or py < margin or py > SCREEN_HEIGHT - margin:
+            reward -= 0.1
+
+        # Death penalty
         if done:
             reward -= 1.0
 
+        # Wrap up
+        # update the last score 
+        # return new obs reward and info
         self._last_score = self.game.current_score
         info = {"asteroids_alive": self.game.number_of_alive_asteroids}
         return obs, reward, done, False, info
-
 
     def render(self):
         self.game.render()
