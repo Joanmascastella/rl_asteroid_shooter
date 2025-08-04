@@ -199,36 +199,36 @@ class AsteroidShooterEnv(gym.Env):
         if action in [1,2,3]:        # lateral moves
             reward += 0.1
         elif action == 0:            # back-up is extra valuable
-            reward += 0.1 + 0.05
+            reward += 0.1 + 0.1
         elif action == 4:            # shoot
             # small cost per shot
-            reward -= 0.01
+            reward -= 0.02
             # penalty if no kill
             if delta == 0:
-                reward -= 0.05
+                reward -= 0.1
 
         # Bonus for moving into sparse regions
         if dists:
             new_avg   = sum(self.game.asteroids_current_dist)/len(self.game.asteroids_current_dist)
             avg_delta = new_avg - prev_avg
-            reward   += max(-0.05, min(0.05, (avg_delta / max_d) * 0.5))
+            reward   += max(-0.05, min(0.05, (avg_delta / max_d) * 0.8))
 
         # Dodge bonus (getting farther from closest)
         if dists:
             new_min     = min(self.game.asteroids_current_dist)
             dodge_delta = new_min - prev_min
             prox        = 1 - (prev_min / max_d)
-            reward     += max(-0.05, min(0.05, (dodge_delta / max_d) * 0.5 * (1 + prox)))
+            reward     += max(-0.05, min(0.05, (dodge_delta / max_d) * 0.8 * (1 + prox)))
 
         # Border penalty
         px, py = self.game.player_current_pos
-        margin = 20
+        margin = 250
         if px < margin or px > SCREEN_WIDTH - margin or py < margin or py > SCREEN_HEIGHT - margin:
-            reward -= 0.1
+            reward -= 10
 
         # Death penalty
         if done:
-            reward -= 1.0
+            reward -= 100.0
 
         # Wrap up
         # update the last score 
