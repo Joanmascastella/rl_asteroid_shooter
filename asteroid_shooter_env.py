@@ -64,7 +64,7 @@ class AsteroidShooterEnv(gym.Env):
             "asteroids_dist":       spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
             "asteroids_abs_angle":  spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
             "asteroids_rel_angle":  spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
-            "asteroids_path":       spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS, 2), dtype=np.float32),
+            "asteroids_path":       spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS, 4), dtype=np.float32),
 
             "shots_pos":            spaces.Box(0.0, 1.0, (self.MAX_SHOTS, 2), dtype=np.float32),
             # "shots_speed":          spaces.Box(0.0, 1.0, (self.MAX_SHOTS,), dtype=np.float32),
@@ -113,7 +113,7 @@ class AsteroidShooterEnv(gym.Env):
         ad = np.zeros((N,),   dtype=np.float32)
         aa = np.zeros((N,),   dtype=np.float32)
         ar = np.zeros((N,),   dtype=np.float32)
-        apa = np.zeros((N,2), dtype=np.float32)  # path start and end points
+        apa = np.zeros((N, 4), dtype=np.float32)  # path start and end points
 
         # fill
         for i, (pos, vel, dist, abs_ang, rel_ang, ast_pos) in enumerate(zip(
@@ -138,8 +138,10 @@ class AsteroidShooterEnv(gym.Env):
             # path start and end points
             if ast_pos:
                 path_start, path_end = ast_pos
-                apa[i] = [(path_start[0]/SCREEN_WIDTH), (path_start[1]/SCREEN_HEIGHT)]
-                apa[i] = np.concatenate((apa[i], [(path_end[0]/SCREEN_WIDTH), (path_end[1]/SCREEN_HEIGHT)]))
+                apa[i] = [
+                    path_start[0]/SCREEN_WIDTH, path_start[1]/SCREEN_HEIGHT,
+                    path_end[0]/SCREEN_WIDTH,   path_end[1]/SCREEN_HEIGHT
+                ]
 
         obs["asteroids_pos"]       = ap
         obs["asteroids_vel"]       = av
