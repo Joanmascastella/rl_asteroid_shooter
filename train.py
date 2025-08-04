@@ -43,19 +43,22 @@ def main():
         policy_kwargs=dict(
         net_arch=[dict(pi=[128, 128], vf=[128, 128])]),
         verbose=1,
-        learning_rate=3e-4,
+        learning_rate=1e-3,
         batch_size=64,
-        n_steps=2048,
+        n_steps=512,
+        clip_range=0.1,
+        gae_lambda=0.8,
+        ent_coef=0.1,
         tensorboard_log="./ppo_tensorboard/",
     )
 
     # # # 3) Train with both Render and Reward callbacks
-    # callbacks = CallbackList([RenderCallback(), RewardCallback()])
-    # model.learn(
-    #     total_timesteps=10_000_000,
-    #     callback=callbacks,
-    #     tb_log_name="run_1"
-    # )
+    callbacks = CallbackList([RenderCallback(), RewardCallback()])
+    model.learn(
+        total_timesteps=1_000_000,
+        callback=callbacks,
+        tb_log_name="run_1"
+    )
 
     # 4) Save
     model.save("ppo_asteroids")

@@ -120,24 +120,26 @@ class MainGameLoop:
 
             self.updateable.update(dt)
 
-            # Ramping up difficulty 
-            for a in self.asteroids:
-                a.velocity *= (1 + self.asteroid_speed_increase_rate * dt)
-            constants.ASTEROID_SPAWN_RATE = max(
-                0.1,
-                constants.ASTEROID_SPAWN_RATE * (1 - self.spawn_rate_decrease_rate * dt)
-            )
+            # # Ramping up difficulty 
+            # for a in self.asteroids:
+            #     a.velocity *= (1 + self.asteroid_speed_increase_rate * dt)
+            # constants.ASTEROID_SPAWN_RATE = max(
+            #     0.1,
+            #     constants.ASTEROID_SPAWN_RATE * (1 - self.spawn_rate_decrease_rate * dt)
+            # )
             
             # cleanup shots so if it leaves bounds they get removed 
             for shot in list(self.shots):
                 x,y = shot.position
                 if x<0 or x>SCREEN_WIDTH or y<0 or y>SCREEN_HEIGHT:
                     shot.kill()
+
             # cleanup asteroids so if it leaves bounds they get removed 
             for a in list(self.asteroids):
                 x,y = a.position
                 if x < -a.radius or x > SCREEN_WIDTH+a.radius or y < -a.radius or y > SCREEN_HEIGHT+a.radius:
                     a.kill()
+        
 
             # clamp player to game bounds
             px = max(self.player.radius, min(self.player.position.x, SCREEN_WIDTH - self.player.radius))
