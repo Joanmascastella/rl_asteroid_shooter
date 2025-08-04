@@ -204,14 +204,14 @@ class AsteroidShooterEnv(gym.Env):
          # kills + proximity‐weighted bonus
         if delta > 0:
             prox = 1 - (prev_min / max_d)
-            reward += 1.0 * delta
-            reward += 0.5 * delta * (1 + prox)
+            reward += 2.0 * delta
+            reward += 0.8 * delta * (1 + prox)
 
-        # ── Action shaping ───
-        if action in [1,2,3]:        # lateral moves
-            reward += 0.1
-        elif action == 0:            # back-up is extra valuable
-            reward += 0.1 + 0.1
+        # # ── Action shaping ───
+        # if action in [1,2,3]:        # lateral moves
+        #     reward += 0.1
+        if action == 0:            # back-up is extra valuable
+            reward += 0.99
         elif action == 4:            # shoot
             # small cost per shot
             reward -= 0.02
@@ -220,10 +220,10 @@ class AsteroidShooterEnv(gym.Env):
                 reward -= 0.1
 
         # Bonus for moving into sparse regions
-        if dists:
-            new_avg   = sum(self.game.asteroids_current_dist)/len(self.game.asteroids_current_dist)
-            avg_delta = new_avg - prev_avg
-            reward   += max(-0.05, min(0.05, (avg_delta / max_d) * 0.8))
+        # if dists:
+        #     new_avg   = sum(self.game.asteroids_current_dist)/len(self.game.asteroids_current_dist)
+        #     avg_delta = new_avg - prev_avg
+        #     reward   += max(-0.05, min(0.05, (avg_delta / max_d) * 0.8))
 
         # Dodge bonus (getting farther from closest)
         if dists:
@@ -240,12 +240,12 @@ class AsteroidShooterEnv(gym.Env):
     
             # ── Path danger penalty ──
             danger_threshold = 40  # pixels, adjust as needed
-            for path_start, path_end in self.game.asteroids_path:
-                # Calculate distance from player to asteroid path (line segment)
+            asteroids_in_path = []
+            path_distances = []
+            for idx, (path_start, path_end) in enumerate(self.game.asteroids_path):
                 x0, y0 = px, py
                 x1, y1 = path_start
                 x2, y2 = path_end
-                # Line segment formula
                 dx, dy = x2 - x1, y2 - y1
                 if dx == dy == 0:
                     dist = math.hypot(x0 - x1, y0 - y1)
@@ -256,10 +256,20 @@ class AsteroidShooterEnv(gym.Env):
                     dist = math.hypot(x0 - proj_x, y0 - proj_y)
                 if dist < danger_threshold:
                     reward -= 2  # penalty for being in asteroid path
-    
-            # Death penalty
-            if done:
-                reward -= 100.0
+                    asteroids_in_path.append(idx)
+                    path_distances.append(dist)
+
+        # Death penalty
+        if done:
+            reward -= 100.0
+
+        # ── Path kill bonus ──
+        if delta > 0 and asteroids_in_path:
+            # Agent killed at least one asteroid and was in the path of one or more
+            # Bonus increases with distance from path (up to danger_threshold)
+            for dist in path_distances:
+                bonus = 10.0 * (dist / danger_threshold)  # farther = bigger bonus
+                reward += bonus
 
         # Wrap up
         # update the last score 

@@ -56,7 +56,7 @@ def main():
     # 3) Train with both Render and Reward callbacks
     callbacks = CallbackList([RenderCallback(), RewardCallback()])
     model.learn(
-        total_timesteps=1_000_000,
+        total_timesteps=10_000_000,
         callback=callbacks,
         tb_log_name="run_1"
     )
