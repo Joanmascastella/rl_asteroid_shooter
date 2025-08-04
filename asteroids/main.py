@@ -30,6 +30,7 @@ class MainGameLoop:
         self.asteroids_current_dist = []
         self.asteroids_current_abs_angle = []
         self.asteroids_current_rel_angle = []  # relative to player orientation
+        self.asteroids_path = [] 
         # Shot telemetry
         self.shooter_current_pos = []
         self.shooter_current_speed = []
@@ -117,6 +118,7 @@ class MainGameLoop:
             self.asteroids_current_rel_angle.clear()
             self.shooter_current_pos.clear()
             self.shooter_current_speed.clear()
+            self.asteroids_path.clear()
 
             self.updateable.update(dt)
 
@@ -159,6 +161,9 @@ class MainGameLoop:
                 self.asteroids_current_dist.append(dist)
                 self.asteroids_current_abs_angle.append(abs_ang)
                 self.asteroids_current_rel_angle.append(rel_ang)
+                path_start = tuple(a.spawn_position)
+                path_end   = tuple(a.get_path(5.0))
+                self.asteroids_path.append((path_start, path_end))
             self.player_current_pos       = (px, py)
             self.player_rotation          = self.player.rotation
             self.player_turn_speed        = PLAYER_TURN_SPEED

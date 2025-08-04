@@ -9,8 +9,8 @@ class AsteroidShooterEnv(gym.Env):
     def __init__(self):
         super().__init__()
         # how many objects we’ll track at once
-        self.MAX_ASTEROIDS = 20
-        self.MAX_SHOTS     = 10
+        self.MAX_ASTEROIDS = 200
+        self.MAX_SHOTS     = 100
 
         # our game loop instance
         self.game = MainGameLoop()
@@ -36,6 +36,7 @@ class AsteroidShooterEnv(gym.Env):
         self.asteroids_current_dist = self.game.asteroids_current_dist
         self.asteroids_current_abs_angle = self.game.asteroids_current_abs_angle
         self.asteroids_current_rel_angle = self.game.asteroids_current_rel_angle
+        self.asteroids_path = self.game.asteroids_path 
         # Shot telemetry
         self.shooter_current_pos = self.game.shooter_current_pos
         self.shooter_current_speed = self.game.shooter_current_speed
@@ -63,6 +64,7 @@ class AsteroidShooterEnv(gym.Env):
             "asteroids_dist":       spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
             "asteroids_abs_angle":  spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
             "asteroids_rel_angle":  spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS,), dtype=np.float32),
+            "asteroids_path":       spaces.Box(0.0, 1.0, (self.MAX_ASTEROIDS, 2), dtype=np.float32),
 
             "shots_pos":            spaces.Box(0.0, 1.0, (self.MAX_SHOTS, 2), dtype=np.float32),
             # "shots_speed":          spaces.Box(0.0, 1.0, (self.MAX_SHOTS,), dtype=np.float32),
@@ -111,13 +113,16 @@ class AsteroidShooterEnv(gym.Env):
         ad = np.zeros((N,),   dtype=np.float32)
         aa = np.zeros((N,),   dtype=np.float32)
         ar = np.zeros((N,),   dtype=np.float32)
+        apa = np.zeros((N,2), dtype=np.float32)  # path start and end points
+
         # fill
-        for i, (pos, vel, dist, abs_ang, rel_ang) in enumerate(zip(
+        for i, (pos, vel, dist, abs_ang, rel_ang, ast_pos) in enumerate(zip(
                 self.asteroids_current_pos,
                 self.asteroids_current_vel,
                 self.asteroids_current_dist,
                 self.asteroids_current_abs_angle,
                 self.asteroids_current_rel_angle,
+                self.asteroids_path
             )):
             if i >= N: break
             x, y = pos
@@ -130,13 +135,18 @@ class AsteroidShooterEnv(gym.Env):
             ad[i] = dist / max_d
             aa[i] = abs_ang / 360.0
             ar[i] = rel_ang / 360.0
+            # path start and end points
+            if ast_pos:
+                path_start, path_end = ast_pos
+                apa[i] = [(path_start[0]/SCREEN_WIDTH), (path_start[1]/SCREEN_HEIGHT)]
+                apa[i] = np.concatenate((apa[i], [(path_end[0]/SCREEN_WIDTH), (path_end[1]/SCREEN_HEIGHT)]))
 
         obs["asteroids_pos"]       = ap
         obs["asteroids_vel"]       = av
         obs["asteroids_dist"]      = ad
         obs["asteroids_abs_angle"] = aa
         obs["asteroids_rel_angle"] = ar
-        # number alive (optional, since you can infer it from `num_asteroids`)
+        obs["asteroids_path"]      = apa
         obs["num_asteroids"] = np.array([len(self.asteroids_current_pos)/N], dtype=np.float32)
 
         # — Shots — pad/truncate to MAX_SHOTS
@@ -220,15 +230,34 @@ class AsteroidShooterEnv(gym.Env):
             prox        = 1 - (prev_min / max_d)
             reward     += max(-0.05, min(0.05, (dodge_delta / max_d) * 0.8 * (1 + prox)))
 
-        # Border penalty
-        px, py = self.game.player_current_pos
-        margin = 250
-        if px < margin or px > SCREEN_WIDTH - margin or py < margin or py > SCREEN_HEIGHT - margin:
-            reward -= 10
-
-        # Death penalty
-        if done:
-            reward -= 100.0
+            # Border penalty
+            px, py = self.game.player_current_pos
+            margin = 250
+            if px < margin or px > SCREEN_WIDTH - margin or py < margin or py > SCREEN_HEIGHT - margin:
+                reward -= 10
+    
+            # ── Path danger penalty ──
+            danger_threshold = 40  # pixels, adjust as needed
+            for path_start, path_end in self.game.asteroids_path:
+                # Calculate distance from player to asteroid path (line segment)
+                x0, y0 = px, py
+                x1, y1 = path_start
+                x2, y2 = path_end
+                # Line segment formula
+                dx, dy = x2 - x1, y2 - y1
+                if dx == dy == 0:
+                    dist = math.hypot(x0 - x1, y0 - y1)
+                else:
+                    t = max(0, min(1, ((x0 - x1) * dx + (y0 - y1) * dy) / (dx * dx + dy * dy)))
+                    proj_x = x1 + t * dx
+                    proj_y = y1 + t * dy
+                    dist = math.hypot(x0 - proj_x, y0 - proj_y)
+                if dist < danger_threshold:
+                    reward -= 2  # penalty for being in asteroid path
+    
+            # Death penalty
+            if done:
+                reward -= 100.0
 
         # Wrap up
         # update the last score 
